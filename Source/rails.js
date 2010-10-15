@@ -18,150 +18,144 @@ provides:
 
 window.addEvent('domready', function() {
 
-  rails.csrf = {
-    token: rails.getCsrf('token'),
-    param: rails.getCsrf('param')
-  };
+	rails.csrf = {
+		token: rails.getCsrf('token'),
+		param: rails.getCsrf('param')
+	};
 
-  rails.applyEvents();
+	rails.applyEvents();
 });
 
 (function($) {
 
-  window.rails = {
-    /**
+	window.rails = {
+	/**
      * If el is passed as argument, events will only be applied to
      * elements within el. Otherwise applied to document body.
      */
-    applyEvents: function(el) {
-      el = $(el || document.body);
-      var apply = function(selector, action, callback) {
-        el.getElements(selector).addEvent(action, callback);
-      };
+		applyEvents: function(el) {
+			el = $(el || document.body);
+			var apply = function(selector, action, callback) {
+				el.getElements(selector).addEvent(action, callback);
+			};
 
-      apply('form[data-remote="true"]', 'submit', rails.handleRemote);
-      apply('a[data-remote="true"], input[data-remote="true"]', 'click', rails.handleRemote);
-      apply('a[data-method][data-remote!=true]', 'click', function(e) {
-        e.preventDefault();
-        if(rails.confirmed(this)) {
-          var form = new Element('form', {
-            method: 'post',
-            action: this.get('href'),
-            styles: { display: 'none' }
-          }).inject(this, 'after');
-          
-          var methodInput = new Element('input', {
-            type: 'hidden',
-            name: '_method',
-            value: this.get('data-method')
-          });
-          
-          var csrfInput = new Element('input', {
-            type: 'hidden',
-            name: rails.csrf.param,
-            value: rails.csrf.token
-          });
-          
-          form.adopt(methodInput, csrfInput).submit();
-        }
-      });
-      var noMethodNorRemoteConfirm = ':not([data-method]):not([data-remote=true])[data-confirm]';
-      apply('a' + noMethodNorRemoteConfirm + ',' + 'input' + noMethodNorRemoteConfirm, 'click', function() {
-        return rails.confirmed(this);
-      });
-    },
+			apply('form[data-remote="true"]', 'submit', rails.handleRemote);
+			apply('a[data-remote="true"], input[data-remote="true"]', 'click', rails.handleRemote);
+			apply('a[data-method][data-remote!=true]', 'click', function(e) {
+				e.preventDefault();
+				if(rails.confirmed(this)) {
+					var form = new Element('form', {
+						method: 'post',
+						action: this.get('href'),
+						styles: { display: 'none' }
+					}).inject(this, 'after');
 
-    getCsrf: function(name) {
-      var meta = document.getElement('meta[name=csrf-' + name + ']');
-      return (meta ? meta.get('content') : null);
-    },
+					var methodInput = new Element('input', {
+						type: 'hidden',
+						name: '_method',
+						value: this.get('data-method')
+					});
 
-    confirmed: function(el) {
-      var confirmMessage = el.get('data-confirm');
-      if(confirmMessage && !confirm(confirmMessage)) {
-        return false;
-      }
-      return true;
-    },
+					var csrfInput = new Element('input', {
+						type: 'hidden',
+						name: rails.csrf.param,
+						value: rails.csrf.token
+					});
 
-    disable: function(el) {
-      var button = el.get('data-disable-with') ? el : el.getElement('[data-disable-with]');
+					form.adopt(methodInput, csrfInput).submit();
+				}
+			});
+			var noMethodNorRemoteConfirm = ':not([data-method]):not([data-remote=true])[data-confirm]';
+			apply('a' + noMethodNorRemoteConfirm + ',' + 'input' + noMethodNorRemoteConfirm, 'click', function() {
+				return rails.confirmed(this);
+			});
+		},
 
-      if(button) {
-        var enableWith = button.get('value');
-        el.addEvent('ajax:complete', function() {
-          button.set({
-            value: enableWith,
-            disabled: false
-          });
-        });
-        button.set({
-          value: button.get('data-disable-with'),
-          disabled: true
-        });
-      }
-    },
+		getCsrf: function(name) {
+			var meta = document.getElement('meta[name=csrf-' + name + ']');
+			return (meta ? meta.get('content') : null);
+		},
 
-    handleRemote: function(e) {
-      e.preventDefault();
+		confirmed: function(el) {
+			var confirmMessage = el.get('data-confirm');
+			if(confirmMessage && !confirm(confirmMessage)) {
+				return false;
+			}
+			return true;
+		},
 
-      if(rails.confirmed(this)) {
-        this.request = new Request.Rails(this);
-        rails.disable(this);
-        this.request.send();
-      }
-    }
-  };
+		disable: function(el) {
+			var button = el.get('data-disable-with') ? el : el.getElement('[data-disable-with]');
 
-  Request.Rails = new Class({
+			if(button) {
+				var enableWith = button.get('value');
+				el.addEvent('ajax:complete', function() {
+					button.set({
+						value: enableWith,
+						disabled: false
+					});
+				});
+				button.set({
+					value: button.get('data-disable-with'),
+					disabled: true
+				});
+			}
+		},
 
-    Extends: Request,
+		handleRemote: function(e) {
+			e.preventDefault();
 
-    initialize: function(element, options) {
-      this.el = element;
-      this.parent($merge({
-        method: this.el.get('method') || this.el.get('data-method') || 'get',
-        url: this.el.get('action') || this.el.get('href')
-      }, options));
-      this.headers.Accept = '*/*';
+			if(rails.confirmed(this)) {
+				this.request = new Request.Rails(this);
+				rails.disable(this);
+				this.request.send();
+			}
+		}
+	};
 
-      this.addRailsEvents();
-    },
+	Request.Rails = new Class({
 
-    send: function(options) {
-      this.el.fireEvent('ajax:before');
-      if(this.el.get('tag') == 'form') {
-        this.options.data = this.el;
-      }
-      this.parent(options);
-      this.el.fireEvent('ajax:after', this.xhr);
-    },
+		Extends: Request,
 
-    addRailsEvents: function() {
-      this.addEvent('request', function() {
-        this.el.fireEvent('ajax:loading', this.xhr);
-      });
+		initialize: function(element, options) {
+			this.el = element;
+			this.parent(Object.merge({}, {
+				method: this.el.get('method') || this.el.get('data-method') || 'get',
+				url: this.el.get('action') || this.el.get('href')
+			}, options));
+			this.headers.Accept = '*/*';
 
-      this.addEvent('success', function() {
-        this.el.fireEvent('ajax:success', this.xhr);
-      });
+			this.addRailsEvents();
+		},
 
-      this.addEvent('complete', function() {
-        this.el.fireEvent('ajax:complete', this.xhr);
-        this.el.fireEvent('ajax:loaded', this.xhr);
-      });
+		send: function(options) {
+			this.el.fireEvent('ajax:before');
+			if(this.el.get('tag') == 'form') {
+				this.options.data = this.el;
+			}
+			this.parent(options);
+			this.el.fireEvent('ajax:after', this.xhr);
+		},
 
-      this.addEvent('failure', function() {
-        this.el.fireEvent('ajax:failure', this.xhr);
-      });
-    }
+		addRailsEvents: function() {
+			this.addEvent('request', function() {
+				this.el.fireEvent('ajax:loading', this.xhr);
+			});
 
-  });
+			this.addEvent('success', function() {
+				this.el.fireEvent('ajax:success', this.xhr);
+			});
+
+			this.addEvent('complete', function() {
+				this.el.fireEvent('ajax:complete', this.xhr);
+				this.el.fireEvent('ajax:loaded', this.xhr);
+			});
+
+			this.addEvent('failure', function() {
+				this.el.fireEvent('ajax:failure', this.xhr);
+			});
+		}
+
+	});
 
 })(document.id);
-
-/**
- * MooTools selector engine does not match data-* attributes.
- * This will be fixed in 1.3, when the engine is swapped for Slick.
- */
-Selectors.RegExps.combined = (/\.([\w-]+)|\[([\w-]+)(?:([!*^$~|]?=)(["']?)([^\4]*?)\4)?\]|:([\w-]+)(?:\(["']?(.*?)?["']?\)|$)/g);
